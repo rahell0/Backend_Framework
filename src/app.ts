@@ -1,30 +1,111 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, {
+  Request,
+  Response,
+  NextFunction
+} from 'express';
+
 import cors from 'cors';
+import { randomUUID } from 'crypto';
+
 import apiRoutes from './routes/index.js';
+
+import {
+  sendSuccess,
+  sendError
+} from './utils/response.js';
 
 const app = express();
 
-app.use(cors());
+
+// CORS
+app.use(
+  cors({
+    exposedHeaders: ['X-Request-Id']
+  })
+);
+
+
+// JSON parser
 app.use(express.json());
 
-// Route utama - cek apakah server berjalan
-app.get('/', (req: Request, res: Response) => {
-  res.status(200).json({ success: true, message: 'Backend Todo Praktikum Berjalan Mulus!' });
-});
 
-// Daftarkan semua route dengan prefix /api
+// Request ID per request
+app.use(
+  (req: Request, res: Response, next: NextFunction) => {
+    const requestId = randomUUID();
+
+    res.locals.requestId = requestId;
+
+    res.setHeader(
+      'X-Request-Id',
+      requestId
+    );
+
+    next();
+  }
+);
+
+
+// Logging
+app.use(
+  (req: Request, res: Response, next: NextFunction) => {
+    console.log(
+      `[${res.locals.requestId}] ${req.method} ${req.originalUrl}`
+    );
+
+    next();
+  }
+);
+
+
+// Route utama
+app.get(
+  '/',
+  (req: Request, res: Response) => {
+    sendSuccess(
+      res,
+      'Backend Todo Praktikum Berjalan Mulus!'
+    );
+  }
+);
+
+
+// Semua route API
 app.use('/api', apiRoutes);
 
-// 404 Handler - menangkap route yang tidak terdaftar
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ success: false, message: `Route ${req.method} ${req.url} tidak ditemukan` });
-});
 
-// Global Error Handler - menangkap error yang tidak tertangani
-// Harus ada 4 parameter (err, req, res, next) agar Express mengenalinya sebagai error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error('Terjadi error:', err.message);
-  res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
-});
+// 404 Handler
+app.use(
+  (req: Request, res: Response) => {
+    sendError(
+      res,
+      `Route ${req.method} ${req.url} tidak ditemukan`,
+      404
+    );
+  }
+);
+
+
+// Global Error Handler
+app.use(
+  (
+    err: Error,
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    console.error(
+      'Terjadi error:',
+      err.message
+    );
+
+    sendError(
+      res,
+      'Terjadi kesalahan pada server.',
+      500
+    );
+  }
+);
+
 
 export default app;
